@@ -19,7 +19,7 @@
 
         <h1 id="login-heading">Sign in to your account</h1>
 
-        <form id="loginForm" onsubmit="login(event)" novalidate>
+        <form id="loginForm" novalidate>
             <div class="field">
                 <label for="studentId">Student ID</label>
                 <input type="text" id="studentId" name="studentId" placeholder="e.g. S123456" autocomplete="username" required>
@@ -48,7 +48,7 @@
 
             <div class="help-links">
                 <a href="#" class="link">Forgot password?</a>
-                <a href="#" class="link">Create an account</a>
+                <a href="register.html" class="link">Create an account</a>
             </div>
         </form>
     </section>
@@ -66,7 +66,7 @@ document.getElementById('togglePass').addEventListener('click', function(){
 
 function showError(id, message) {
     const el = document.getElementById(id);
-    el.textContent = message;
+    if (el) el.textContent = message;
 }
 
 function clearErrors() {
@@ -103,12 +103,12 @@ function login(e) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Signing in...';
 
-    
     setTimeout(function(){
         window.location.href = 'dashboard.html';
     }, 600);
 }
 
+document.getElementById('loginForm').addEventListener('submit', login);
 </script>
 </body>
 </html>
