@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Books — Library</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard">
+<div class="container">
+    <div class="hero card">
+        <h2 style="text-align:center;margin:0">Search Books 📚</h2>
+        <p class="muted" style="text-align:center;margin-top:8px">Find books by title or author and reserve available copies</p>
+    </div>
+
+    <div class="card">
+        <input id="search" class="search" type="text" placeholder="Search by title or author...">
+    </div>
+
+    <div id="bookList" class="books-grid"></div>
+
+</div>
+
+    <div class="card center-actions">
+        <button class="dash-btn primary" onclick="go('mybooks.html')">📖 View My Books</button>
+    </div>
+
+    <div class="card" style="margin-top:12px; text-align:center;">
+        <button class="dash-btn back" onclick="goBack()">⬅ Back</button>
+    </div>
+</div>
+</div>
+
+<script>
+const fallbackBooks = [
+    {id:1,name: "DSA", author: "Cormen", status: "Available"},
+    {id:2,name: "DBMS", author: "Henry Korth", status: "Issued"},
+    {id:3,name: "Computer Networks", author: "Tanenbaum", status: "Available"},
+    {id:4,name: "Java Programming", author: "Herbert", status: "Available"},
+    {id:5,name: "AI", author: "Russell", status: "Issued"}
+];
+
+async function fetchBooks(){
+    // If the developer provides a `firebase-config.js` that sets `window.FIREBASE_CONFIG`,
+    // try Firestore first. Otherwise fall back to local /api or in-memory data.
+    if(window.FIREBASE_CONFIG){
+        try{
+            await loadFirebase();
+            const snapshot = await firebase.firestore().collection('books').get();
+            const books = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            return books;
+        }catch(err){
+            console.warn('Firestore error, falling back to API', err);
+        }
+    }
+
+    try{
+        const res = await fetch('/api/books');
+        if(!res.ok) throw new Error('Network error');
+        return await res.json();
+    }catch(err){
+        console.warn('API unavailable, using local data', err);
+        return fallbackBooks;
+    }
+}
+
+function loadFirebase(){
+    return new Promise((resolve, reject) => {
+        if(window.firebase && window.firebase.apps && window.firebase.apps.length) return resolve();
+        // load SDKs
+        const s1 = document.createElement('script');
+        s1.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
+        s1.onload = () => {
+            const s2 = document.createElement('script');
+            s2.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js';
+            s2.onload = () => {
+                try{
+                    firebase.initializeApp(window.FIREBASE_CONFIG);
+                    resolve();
+                }catch(e){ reject(e); }
+            };
+            s2.onerror = reject;
+            document.head.appendChild(s2);
+        };
+        s1.onerror = reject;
+        document.head.appendChild(s1);
+    });
+}
+
+function renderBookCard(book){
+    const div = document.createElement('div');
+    div.className = 'book-card card';
+    div.innerHTML = `
+        <h4 style="margin:0">${escapeHtml(book.name)}</h4>
+        <p class="muted" style="margin:6px 0 8px">by ${escapeHtml(book.author)}</p>
+        <p>Status: <strong>${escapeHtml(book.status)}</strong></p>
+        <div style="margin-top:8px">
+            ${book.status === 'Available' ? `<button class="dash-btn primary" onclick="reserve(${book.id})">Reserve</button>` : `<button class="dash-btn secondary" disabled>Unavailable</button>`}
+        </div>
+    `;
+    return div;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+
+async function loadAndShow(){
+    const list = await fetchBooks();
+    window.booksData = list;
+    showBooks(list);
+}
+
+function showBooks(list){
+    const container = document.getElementById('bookList');
+    container.innerHTML = '';
+    list.forEach(b => container.appendChild(renderBookCard(b)));
+}
+
+function searchBook(){
+    const q = document.getElementById('search').value.toLowerCase();
+    const filtered = (window.booksData || fallbackBooks).filter(b => b.name.toLowerCase().includes(q) || b.author.toLowerCase().includes(q));
+    showBooks(filtered);
+}
+
+document.getElementById('search').addEventListener('input', debounce(searchBook, 150));
+
+function debounce(fn, wait){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), wait); } }
+
+async function reserve(bookId){
+    try{
+        const res = await fetch('/api/reserve', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:bookId})});
+        if(!res.ok) throw new Error('reserve failed');
+        const updated = await res.json();
+        window.booksData = updated;
+        showBooks(updated);
+        alert('Reserved successfully');
+    }catch(err){
+        alert('Could not reserve — using fallback behavior');
+        console.warn(err);
+    }
+}
+
+function go(page){ window.location.href = page; }
+function goBack(){ window.location.href = 'dashboard.html'; }
+
+loadAndShow();
+</script>
+</body>
+</html>

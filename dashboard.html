@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta charset="utf-8">
+</head>
+<body class="dashboard">
+<div class="container">
+    <div class="hero card">
+        <h2 style="text-align:center;margin:0">Welcome back 👋</h2>
+        <p class="muted" style="text-align:center;margin-top:8px">Here's a quick snapshot of your library activity</p>
+    </div>
+
+    <div class="stat-box">
+        <div class="stat card">
+            <div class="icon" aria-hidden="true">
+                <!-- book icon -->
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 6a2 2 0 0 1 2-2h12v14H5a2 2 0 0 1-2-2V6z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M21 6v12a2 2 0 0 0-2-2H9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3>3</h3>
+            <p>Borrowed</p>
+        </div>
+        <div class="stat card">
+            <div class="icon" aria-hidden="true">
+                <!-- bookmark icon -->
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 2h12v18l-6-4-6 4V2z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3>1</h3>
+            <p>Reserved</p>
+        </div>
+        <div class="stat card">
+            <div class="icon" aria-hidden="true">
+                <!-- clock icon -->
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.2"/>
+                    <path d="M12 7v6l4 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3>2</h3>
+            <p>Due Soon</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Currently Borrowed</h3>
+        <p><b>Clean Code</b><br>Due: Nov 28, 2025</p>
+    </div>
+
+    <div class="card center-actions">
+        <button class="dash-btn primary" onclick="go('books.html')">🔍 Search Books</button>
+        <button class="dash-btn secondary" onclick="go('mybooks.html')">📖 My Books</button>
+    </div>
+
+    <div class="card" style="margin-top:12px;text-align:center;">
+        <button class="dash-btn back" onclick="goBack()">⬅ Back</button>
+    </div>
+
+</div>
+
+<script>
+function go(page) {
+    window.location.href = page;
+}
+function goBack(){
+    
+    window.location.href = 'login%20(3).html';
+}
+</script>
+</body>
+</html>
