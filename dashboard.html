@@ -1,77 +1,103 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <title>Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
 </head>
+
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
+
 <body class="dashboard">
 <div class="container">
-    <div class="hero card">
-        <h2 style="text-align:center;margin:0">Welcome back 👋</h2>
-        <p class="muted" style="text-align:center;margin-top:8px">Here's a quick snapshot of your library activity</p>
-    </div>
 
-    <div class="stat-box">
-        <div class="stat card">
-            <div class="icon" aria-hidden="true">
-                <!-- book icon -->
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 6a2 2 0 0 1 2-2h12v14H5a2 2 0 0 1-2-2V6z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M21 6v12a2 2 0 0 0-2-2H9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <h3>3</h3>
-            <p>Borrowed</p>
-        </div>
-        <div class="stat card">
-            <div class="icon" aria-hidden="true">
-                <!-- bookmark icon -->
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M6 2h12v18l-6-4-6 4V2z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <h3>1</h3>
-            <p>Reserved</p>
-        </div>
-        <div class="stat card">
-            <div class="icon" aria-hidden="true">
-                <!-- clock icon -->
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.2"/>
-                    <path d="M12 7v6l4 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <h3>2</h3>
-            <p>Due Soon</p>
-        </div>
-    </div>
+  <!-- BACK BUTTON FIXED -->
+  <button class="dash-btn back" style="position:fixed;top:16px;left:16px;z-index:1000;" onclick="location.href='index.html'">⬅ Back</button>
 
-    <div class="card">
-        <h3>Currently Borrowed</h3>
-        <p><b>Clean Code</b><br>Due: Nov 28, 2025</p>
-    </div>
+  <!-- HERO -->
+  <div class="hero card" style="margin-top:60px;">
+    <h2>Welcome back 👋</h2>
+    <p class="muted">Your library summary</p>
+  </div>
 
-    <div class="card center-actions">
-        <button class="dash-btn primary" onclick="go('books.html')">🔍 Search Books</button>
-        <button class="dash-btn secondary" onclick="go('mybooks.html')">📖 My Books</button>
+  <!-- STATS -->
+  <div class="stat-box">
+    <div class="stat card">
+      <h3 id="borrowedCount">0</h3>
+      <p>Borrowed</p>
     </div>
+    <div class="stat card">
+      <h3 id="dueSoonCount">0</h3>
+      <p>Due Soon</p>
+    </div>
+    <div class="stat card">
+      <h3 id="feeCount">0</h3>
+      <p>With Fee</p>
+    </div>
+  </div>
 
-    <div class="card" style="margin-top:12px;text-align:center;">
-        <button class="dash-btn back" onclick="goBack()">⬅ Back</button>
-    </div>
+  <!-- DASHBOARD BUTTONS -->
+  <div class="card center-actions" style="flex-direction:column; gap:10px;">
+    <button class="dash-btn primary" id="searchBooksBtn">🔍 Search Books</button>
+    <button class="dash-btn secondary" id="myBooksBtn">📖 My Books</button>
+    <button class="dash-btn primary" id="profileBtn">👤 Profile</button>
+  </div>
 
 </div>
 
 <script>
-function go(page) {
-    window.location.href = page;
-}
-function goBack(){
-    
-    window.location.href = 'login%20(3).html';
-}
+auth.onAuthStateChanged(async user => {
+  if (!user) return location.href = "index.html";
+
+  document.getElementById("searchBooksBtn").onclick = () => location.href = "books.html";
+  document.getElementById("myBooksBtn").onclick = () => location.href = "mybooks.html";
+  document.getElementById("profileBtn").onclick = () => location.href = "profile.html";
+
+  const snap = await db.collection("reservations")
+    .where("userId", "==", user.uid)
+    .where("status", "==", "Active")
+    .get();
+
+  const now = new Date();
+  let borrowed = snap.size, dueSoon = 0, withFee = 0;
+
+  snap.forEach(async doc => {
+    const r = doc.data();
+    if (!r.dueAt) return;
+    const dueDate = r.dueAt.toDate();
+    const daysLeft = (dueDate - now) / (1000 * 60 * 60 * 24);
+    if (daysLeft <= 2 && daysLeft >= 0) dueSoon++;
+
+    let fine = r.fineAmount || 0;
+    let lastCalc = r.lastFineCalculatedAt ? r.lastFineCalculatedAt.toDate() : dueDate;
+
+    if (now > dueDate) {
+      const diffDays = Math.floor((now - lastCalc) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        fine += diffDays * 5;
+        await db.collection("reservations").doc(doc.id).update({
+          fineAmount: fine,
+          lastFineCalculatedAt: firebase.firestore.Timestamp.fromDate(now)
+        });
+      }
+      withFee++;
+    }
+  });
+
+  document.getElementById("borrowedCount").innerText = borrowed;
+  document.getElementById("dueSoonCount").innerText = dueSoon;
+  document.getElementById("feeCount").innerText = withFee;
+});
 </script>
 </body>
 </html>

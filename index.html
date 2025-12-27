@@ -1,114 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Library Preorder System</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Library Preorder System | Login</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body class="auth-page">
-<main class="container" role="main">
-    <section class="card auth-card" aria-labelledby="login-heading">
-        <div class="logo" aria-hidden="true">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M8 9h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        </div>
 
-        <h1 id="login-heading">Sign in to your account</h1>
+<!-- Firebase -->
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-        <form id="loginForm" novalidate>
-            <div class="field">
-                <label for="studentId">Student ID</label>
-                <input type="text" id="studentId" name="studentId" placeholder="e.g. S123456" autocomplete="username" required>
-                <span class="input-error" id="idError" aria-live="polite"></span>
-            </div>
+<script>
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth = firebase.auth();
+</script>
 
-            <div class="field">
-                <label for="password">Password</label>
-                <div class="password-row">
-                    <input type="password" id="password" name="password" placeholder="Your password" autocomplete="current-password" required>
-                    <button type="button" class="toggle-pass" id="togglePass" aria-pressed="false" aria-label="Show password">Show</button>
-                </div>
-                <span class="input-error" id="passError" aria-live="polite"></span>
-            </div>
+<body class="auth-page fade-page">
 
-            <p class="error" id="errorMsg" aria-live="polite"></p>
-            <div class="remember-row">
-                <label class="remember"><input type="checkbox" id="remember"> Remember me</label>
-                <a href="#" class="link small muted">Need help?</a>
-            </div>
+<main class="container">
+  <section class="card auth-card">
 
-            <div class="actions">
-                <button type="submit" id="submitBtn" class="primary">Sign in</button>
-                <a href="#" class="secondary" id="ssoBtn">Sign in with University</a>
-            </div>
+    <div class="logo">📚</div>
+    <h1>Sign in to your account</h1>
+    <p class="subtitle">Use your Student ID</p>
 
-            <div class="help-links">
-                <a href="#" class="link">Forgot password?</a>
-                <a href="register.html" class="link">Create an account</a>
-            </div>
-        </form>
-    </section>
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label for="studentId">Student ID</label>
+        <input id="studentId" type="text" placeholder="e.g. 2024503530" required>
+        <span class="input-error" id="idError"></span>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter password" required>
+        <span class="input-error" id="passError"></span>
+      </div>
+
+      <p class="error" id="loginError"></p>
+
+      <div class="actions">
+        <button class="primary" type="submit">Login</button>
+      </div>
+
+      <div class="help-links">
+        <a href="register.html" class="link">Create an account</a>
+      </div>
+    </form>
+  </section>
 </main>
 
 <script>
-document.getElementById('togglePass').addEventListener('click', function(){
-    const pwd = document.getElementById('password');
-    const btn = this;
-    const isHidden = pwd.type === 'password';
-    pwd.type = isHidden ? 'text' : 'password';
-    btn.textContent = isHidden ? 'Hide' : 'Show';
-    btn.setAttribute('aria-pressed', String(isHidden));
+const loginForm = document.getElementById("loginForm");
+const studentId = document.getElementById("studentId");
+const password = document.getElementById("password");
+const idError = document.getElementById("idError");
+const passError = document.getElementById("passError");
+const loginError = document.getElementById("loginError");
+
+loginForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  idError.textContent = passError.textContent = loginError.textContent = "";
+
+  const sid = studentId.value.trim();
+  const pwd = password.value;
+
+  if (sid.length < 3) return idError.textContent = "Invalid Student ID";
+  if (pwd.length < 6) return passError.textContent = "Minimum 6 characters";
+
+  try {
+    await auth.signInWithEmailAndPassword(sid + "@library.com", pwd);
+    window.location.href = "dashboard.html";
+  } catch (err) {
+    loginError.textContent = err.message;
+  }
 });
-
-function showError(id, message) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = message;
-}
-
-function clearErrors() {
-    showError('idError','');
-    showError('passError','');
-    showError('errorMsg','');
-}
-
-function login(e) {
-    e.preventDefault();
-    clearErrors();
-    const idEl = document.getElementById('studentId');
-    const passEl = document.getElementById('password');
-    const submitBtn = document.getElementById('submitBtn');
-
-    const id = idEl.value.trim();
-    const pass = passEl.value;
-    let valid = true;
-
-    if (id.length < 3) {
-        showError('idError','Enter a valid Student ID');
-        valid = false;
-        idEl.focus();
-    }
-
-    if (pass.length < 6) {
-        showError('passError','Password must be at least 6 characters');
-        valid = false;
-        if (id.length >= 3) passEl.focus();
-    }
-
-    if (!valid) return;
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Signing in...';
-
-    setTimeout(function(){
-        window.location.href = 'dashboard.html';
-    }, 600);
-}
-
-document.getElementById('loginForm').addEventListener('submit', login);
 </script>
+
 </body>
 </html>

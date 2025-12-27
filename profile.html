@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
+
+<body class="dashboard">
+<div class="container">
+
+  <div class="hero card">
+    <h2>👋 Welcome to the Library!</h2>
+    <p class="muted">Manage your account and view your ID</p>
+  </div>
+
+  <!-- USER INFO CARD -->
+  <div class="card center-actions">
+    <h3>Your ID:</h3>
+    <p id="studentId">Loading...</p>
+  </div>
+
+  <!-- BACK TO DASHBOARD -->
+  <div class="card center-actions">
+    <button class="dash-btn secondary" onclick="go('dashboard.html')">⬅ Back</button>
+  </div>
+
+  <!-- LOGOUT BUTTON -->
+  <div class="card center-actions">
+    <button class="dash-btn back" onclick="logout()">🚪 Logout</button>
+  </div>
+
+</div>
+
+<script>
+function go(page) { window.location.href = page; }
+function logout() { auth.signOut().then(() => location.href = "index.html"); }
+
+auth.onAuthStateChanged(async user => {
+  if (!user) return location.href = "index.html";
+
+  const userDoc = await db.collection("users").doc(user.uid).get();
+  document.getElementById("studentId").innerText = userDoc.exists ? userDoc.data().studentId : "Not found";
+});
+</script>
+</body>
+</html>

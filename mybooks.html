@@ -1,59 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>My Books</title>
-    <link rel="stylesheet" href="style.css">
-    <meta charset="utf-8">
-    </head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>My Books</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
+
 <body class="dashboard">
 <div class="container">
-    <div class="hero card">
-        <h2 style="text-align:center;margin:0">My Books</h2>
-        <p class="muted" style="text-align:center;margin-top:8px">Books you currently have checked out</p>
-    </div>
 
-    <div class="books-grid">
-        <div class="card book-card">
-            <div>
-                <h4 style="margin:0">Python Programming</h4>
-                <p class="muted" style="margin:6px 0">Due: Nov 28, 2024</p>
-            </div>
-            <div style="margin-top:8px">
-                <button class="dash-btn secondary" onclick="renew('Python Programming')">🔁 Renew</button>
-                <button class="dash-btn primary" onclick="returnBook('Python Programming')">Return</button>
-            </div>
-        </div>
+  <!-- BACK BUTTON FIXED -->
+  <button class="dash-btn back" style="position:fixed;top:16px;left:16px;z-index:1000;" onclick="history.back()">⬅ Back</button>
 
-        <div class="card book-card">
-            <div>
-                <h4 style="margin:0">Clean Code</h4>
-                <p class="muted" style="margin:6px 0">Due: Nov 30, 2025</p>
-            </div>
-            <div style="margin-top:8px">
-                <button class="dash-btn secondary" onclick="renew('Clean Code')">🔁 Renew</button>
-                <button class="dash-btn primary" onclick="returnBook('Clean Code')">Return</button>
-            </div>
-        </div>
-    </div>
+  <div class="hero card" style="margin-top:60px;">
+    <h2>My Books</h2>
+    <p class="muted">Borrowed books, renewals & fines</p>
+  </div>
 
-    <div class="card center-actions">
-        <button class="dash-btn primary" onclick="go('books.html')">🔍 Search Books</button>
-    </div>
-
-    <div class="card" style="margin-top:12px;text-align:center;">
-        <button class="dash-btn back" onclick="goBack()">⬅ Back</button>
-    </div>
+  <div id="myBooksList"></div>
 
 </div>
 
 <script>
-function go(page){ window.location.href = page; }
-function goBack(){ window.location.href = 'dashboard.html'; }
-function renew(title){ alert('Renew request sent for ' + title); }
-function returnBook(title){ alert('Return initiated for ' + title); }
-</script>
+auth.onAuthStateChanged(user => {
+  if (!user) return location.href = "index.html";
 
+  db.collection("reservations")
+    .where("userId", "==", user.uid)
+    .where("status", "==", "Active")
+    .orderBy("reservedAt", "desc")
+    .onSnapshot(snapshot => {
+      const el = document.getElementById("myBooksList");
+      el.innerHTML = "";
+
+      if (snapshot.empty) { el.innerHTML = "<p class='muted'>No active books</p>"; return; }
+
+      const now = new Date();
+
+      snapshot.forEach(doc => {
+        const r = doc.data();
+        const renewCount = r.renewCount || 0;
+        const dueDate = r.dueAt?.toDate();
+        let fine = 0;
+        let statusText = "";
+
+        if (dueDate) {
+          const diffDays = Math.ceil((now - dueDate)/(1000*60*60*24));
+          if (diffDays > 0) { fine = diffDays * 5; statusText = `Overdue by ${diffDays} day(s)`; }
+          else { statusText = `${Math.abs(diffDays)} day(s) left`; }
+        }
+
+        const canRenew = renewCount < 3;
+
+        el.innerHTML += `
+          <div class="card book-card" data-id="${doc.id}">
+            <h4>${r.bookName}</h4>
+            <p><b>Due Date:</b> ${dueDate ? dueDate.toDateString() : "Not set"}</p>
+            <p><b>Renewals:</b> ${renewCount} / 3</p>
+            <p><b>Status:</b> ${statusText}</p>
+            ${fine>0 ? `<p style="color:#dc2626"><b>Fine:</b> ₹${fine}</p>` : ""}
+            <div class="center-actions">
+              <button class="dash-btn primary" ${canRenew ? "" : "disabled"} onclick="renewBook('${doc.id}')">🔄 Renew (10 days)</button>
+              <button class="dash-btn primary" onclick="returnBook('${doc.id}','${r.bookId}')">⏎ Return</button>
+            </div>
+          </div>
+        `;
+      });
+    });
+});
+
+async function renewBook(resId) {
+  const now = new Date();
+  const newDue = new Date(now);
+  newDue.setDate(now.getDate()+10);
+
+  await db.collection("reservations").doc(resId).update({
+    dueAt: firebase.firestore.Timestamp.fromDate(newDue),
+    renewCount: firebase.firestore.FieldValue.increment(1)
+  });
+
+  alert("Book renewed for 10 more days");
+}
+
+async function returnBook(resId, bookId) {
+  await db.collection("reservations").doc(resId).update({
+    status: "Returned",
+    returnedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  await db.collection("books").doc(bookId).update({
+    availableCopies: firebase.firestore.FieldValue.increment(1)
+  });
+
+  alert("Book returned successfully!");
+}
+</script>
 </body>
 </html>

@@ -1,87 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Register — Library Preorder System</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Library Preorder System | Register</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body class="auth-page">
-<main class="container" role="main">
-  <section class="card auth-card" aria-labelledby="reg-heading">
-    <div class="logo" aria-hidden="true">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M8 9h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
 
-    <h1 id="reg-heading">Create an account</h1>
+<!-- Firebase -->
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<script>
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth = firebase.auth();
+</script>
+
+<body class="auth-page fade-page">
+
+<main class="container">
+  <section class="card auth-card">
+
+    <button class="back-btn" onclick="history.back()">← Back</button>
+
+    <div class="logo">📚</div>
+    <h1>Create your account</h1>
+    <p class="subtitle">Use your Student ID to register</p>
 
     <form id="registerForm" novalidate>
       <div class="field">
-        <label for="regStudentId">Student ID</label>
-        <input type="text" id="regStudentId" name="regStudentId" placeholder="e.g. 2024503530" required>
-        <span class="input-error" id="regIdError" aria-live="polite"></span>
+        <label for="studentId">Student ID</label>
+        <input id="studentId" type="text" placeholder="e.g. 2024503530" required>
+        <span class="input-error" id="idError"></span>
       </div>
+
       <div class="field">
-        <label for="regPassword">Password</label>
-        <input type="password" id="regPassword" name="regPassword" placeholder="Choose a password" required>
-        <span class="input-error" id="regPassError" aria-live="polite"></span>
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter password" required>
+        <span class="input-error" id="passError"></span>
       </div>
+
+      <div class="field">
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" placeholder="Re-enter password" required>
+        <span class="input-error" id="confirmError"></span>
+      </div>
+
+      <p class="error" id="registerError"></p>
 
       <div class="actions">
-        <button type="submit" class="primary">Register</button>
-        <a href="index.html" class="secondary">Back to sign in</a>
+        <button class="primary" type="submit">Register</button>
       </div>
 
-      <p class="error" id="regMsg" aria-live="polite"></p>
+      <div class="help-links">
+        <a href="index.html" class="link">Already have an account?</a>
+      </div>
     </form>
   </section>
 </main>
 
 <script>
-const API_BASE = (location.protocol === 'file:') ? 'http://localhost:3000' : '';
+const registerForm = document.getElementById("registerForm");
+const studentId = document.getElementById("studentId");
+const password = document.getElementById("password");
+const confirmPassword = document.getElementById("confirmPassword");
+const idError = document.getElementById("idError");
+const passError = document.getElementById("passError");
+const confirmError = document.getElementById("confirmError");
+const registerError = document.getElementById("registerError");
 
-function showError(id, message) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = message;
-}
-
-function clearErrors() {
-  ['regIdError','regPassError','regMsg'].forEach(id => showError(id, ''));
-}
-
-async function register(e) {
+registerForm.addEventListener("submit", async e => {
   e.preventDefault();
-  clearErrors();
-  const idEl = document.getElementById('regStudentId');
-  const passEl = document.getElementById('regPassword');
-  const studentId = idEl.value.trim();
-  const password = passEl.value;
-  if (studentId.length < 3) { showError('regIdError','Enter a valid Student ID'); idEl.focus(); return; }
-  if (password.length < 6) { showError('regPassError','Password must be at least 6 characters'); passEl.focus(); return; }
+  idError.textContent = passError.textContent = confirmError.textContent = registerError.textContent = "";
+
+  const sid = studentId.value.trim();
+  const pwd = password.value;
+  const cpwd = confirmPassword.value;
+
+  if (sid.length < 3) return idError.textContent = "Invalid Student ID";
+  if (pwd.length < 6) return passError.textContent = "Minimum 6 characters";
+  if (pwd !== cpwd) return confirmError.textContent = "Passwords do not match";
 
   try {
-    const res = await fetch(API_BASE + '/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, password })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showError('regMsg', data.error || 'Registration failed');
-      return;
-    }
-    // on success go to login
-    window.location.href = 'index.html';
+    await auth.createUserWithEmailAndPassword(sid + "@library.com", pwd);
+    window.location.href = "dashboard.html";
   } catch (err) {
-    showError('regMsg','Network error');
+    registerError.textContent = err.message;
   }
-}
-
-document.getElementById('registerForm').addEventListener('submit', register);
+});
 </script>
+
 </body>
 </html>

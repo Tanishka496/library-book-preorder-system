@@ -1,148 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Books — Library</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Books — Library</title>
+  <link rel="stylesheet" href="style.css">
 </head>
+
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
+
 <body class="dashboard">
 <div class="container">
-    <div class="hero card">
-        <h2 style="text-align:center;margin:0">Search Books 📚</h2>
-        <p class="muted" style="text-align:center;margin-top:8px">Find books by title or author and reserve available copies</p>
-    </div>
 
-    <div class="card">
-        <input id="search" class="search" type="text" placeholder="Search by title or author...">
-    </div>
+  <!-- BACK BUTTON FIXED -->
+  <button class="dash-btn back" style="position:fixed;top:16px;left:16px;z-index:1000;" onclick="location.href='dashboard.html'">⬅ Back</button>
 
-    <div id="bookList" class="books-grid"></div>
+  <!-- VIEW MY BOOKS BUTTON INSIDE FRAME -->
+  <div class="center-actions" style="margin-top:60px;">
+    <button class="dash-btn primary" onclick="location.href='mybooks.html'">📖 View My Books</button>
+  </div>
 
-</div>
+  <div class="hero card" style="margin-top:16px;">
+    <h2>Search Books 📚</h2>
+    <p class="muted">Reserve available copies</p>
+  </div>
 
-    <div class="card center-actions">
-        <button class="dash-btn primary" onclick="go('mybooks.html')">📖 View My Books</button>
-    </div>
+  <div class="card">
+    <input id="search" class="search" placeholder="Search books...">
+  </div>
 
-    <div class="card" style="margin-top:12px; text-align:center;">
-        <button class="dash-btn back" onclick="goBack()">⬅ Back</button>
-    </div>
-</div>
+  <div id="bookList" class="books-grid"></div>
+
 </div>
 
 <script>
-const fallbackBooks = [
-    {id:1,name: "DSA", author: "Cormen", status: "Available"},
-    {id:2,name: "DBMS", author: "Henry Korth", status: "Issued"},
-    {id:3,name: "Computer Networks", author: "Tanenbaum", status: "Available"},
-    {id:4,name: "Java Programming", author: "Herbert", status: "Available"},
-    {id:5,name: "AI", author: "Russell", status: "Issued"}
-];
+let books = [];
+let userReservedBooks = new Set();
 
-async function fetchBooks(){
-    // If the developer provides a `firebase-config.js` that sets `window.FIREBASE_CONFIG`,
-    // try Firestore first. Otherwise fall back to local /api or in-memory data.
-    if(window.FIREBASE_CONFIG){
-        try{
-            await loadFirebase();
-            const snapshot = await firebase.firestore().collection('books').get();
-            const books = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            return books;
-        }catch(err){
-            console.warn('Firestore error, falling back to API', err);
-        }
-    }
+auth.onAuthStateChanged(user => {
+  if (!user) location.href = "index.html";
 
-    try{
-        const res = await fetch('/api/books');
-        if(!res.ok) throw new Error('Network error');
-        return await res.json();
-    }catch(err){
-        console.warn('API unavailable, using local data', err);
-        return fallbackBooks;
-    }
-}
-
-function loadFirebase(){
-    return new Promise((resolve, reject) => {
-        if(window.firebase && window.firebase.apps && window.firebase.apps.length) return resolve();
-        // load SDKs
-        const s1 = document.createElement('script');
-        s1.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
-        s1.onload = () => {
-            const s2 = document.createElement('script');
-            s2.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js';
-            s2.onload = () => {
-                try{
-                    firebase.initializeApp(window.FIREBASE_CONFIG);
-                    resolve();
-                }catch(e){ reject(e); }
-            };
-            s2.onerror = reject;
-            document.head.appendChild(s2);
-        };
-        s1.onerror = reject;
-        document.head.appendChild(s1);
+  db.collection("reservations")
+    .where("userId", "==", user.uid)
+    .where("status", "==", "Active")
+    .onSnapshot(snapshot => {
+      userReservedBooks.clear();
+      snapshot.forEach(doc => userReservedBooks.add(doc.data().bookId));
+      renderBooks(books);
     });
-}
+});
 
-function renderBookCard(book){
-    const div = document.createElement('div');
-    div.className = 'book-card card';
-    div.innerHTML = `
-        <h4 style="margin:0">${escapeHtml(book.name)}</h4>
-        <p class="muted" style="margin:6px 0 8px">by ${escapeHtml(book.author)}</p>
-        <p>Status: <strong>${escapeHtml(book.status)}</strong></p>
-        <div style="margin-top:8px">
-            ${book.status === 'Available' ? `<button class="dash-btn primary" onclick="reserve(${book.id})">Reserve</button>` : `<button class="dash-btn secondary" disabled>Unavailable</button>`}
-        </div>
+db.collection("books").onSnapshot(snapshot => {
+  books = [];
+  snapshot.forEach(doc => books.push({ id: doc.id, ...doc.data() }));
+  renderBooks(books);
+});
+
+function renderBooks(list) {
+  const el = document.getElementById("bookList");
+  el.innerHTML = "";
+  list.forEach(book => {
+    const alreadyReserved = userReservedBooks.has(book.id);
+    const available = book.availableCopies > 0;
+    el.innerHTML += `
+      <div class="card book-card">
+        <h4>${book.name}</h4>
+        <p class="muted">by ${book.author}</p>
+        <p>Status: <b>${available ? `Available (${book.availableCopies})` : 'Unavailable'}</b></p>
+        ${alreadyReserved
+          ? `<button class="dash-btn secondary" disabled>Already Reserved</button>`
+          : available
+            ? `<button class="dash-btn primary" onclick="reserveBook(this,'${book.id}','${book.name}')">Reserve</button>`
+            : `<button class="dash-btn secondary" disabled>Unavailable</button>`}
+      </div>
     `;
-    return div;
+  });
 }
 
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+document.getElementById("search").addEventListener("input", e => {
+  const q = e.target.value.toLowerCase();
+  renderBooks(books.filter(b => b.name.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)));
+});
 
-async function loadAndShow(){
-    const list = await fetchBooks();
-    window.booksData = list;
-    showBooks(list);
+async function reserveBook(btn, bookId, bookName) {
+  const user = auth.currentUser;
+  btn.disabled = true;
+
+  try {
+    const activeSnap = await db.collection("reservations")
+      .where("userId", "==", user.uid)
+      .where("status", "==", "Active")
+      .get();
+
+    if (activeSnap.size >= 5) { alert("You can reserve only 5 books"); btn.disabled = false; return; }
+
+    const sameBook = await db.collection("reservations")
+      .where("userId", "==", user.uid)
+      .where("bookId", "==", bookId)
+      .where("status", "==", "Active")
+      .get();
+
+    if (!sameBook.empty) { alert("You already reserved this book"); btn.disabled = false; return; }
+
+    const userDoc = await db.collection("users").doc(user.uid).get();
+    const studentId = userDoc.data().studentId;
+    const bookRef = db.collection("books").doc(bookId);
+
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(bookRef);
+      if (!snap.exists) throw new Error("Book not found");
+      const data = snap.data();
+      if (data.availableCopies <= 0) throw new Error("No copies left");
+
+      tx.update(bookRef, { availableCopies: data.availableCopies - 1 });
+      const now = firebase.firestore.Timestamp.now();
+      const dueAt = firebase.firestore.Timestamp.fromDate(new Date(now.toDate().getTime() + 10*24*60*60*1000));
+
+      tx.set(db.collection("reservations").doc(), {
+        bookId, bookName, userId: user.uid, studentId,
+        status: "Active", reservedAt: now, dueAt, renewCount: 0
+      });
+    });
+
+    alert("Book reserved successfully");
+  } catch (err) { alert(err.message); btn.disabled = false; }
 }
-
-function showBooks(list){
-    const container = document.getElementById('bookList');
-    container.innerHTML = '';
-    list.forEach(b => container.appendChild(renderBookCard(b)));
-}
-
-function searchBook(){
-    const q = document.getElementById('search').value.toLowerCase();
-    const filtered = (window.booksData || fallbackBooks).filter(b => b.name.toLowerCase().includes(q) || b.author.toLowerCase().includes(q));
-    showBooks(filtered);
-}
-
-document.getElementById('search').addEventListener('input', debounce(searchBook, 150));
-
-function debounce(fn, wait){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), wait); } }
-
-async function reserve(bookId){
-    try{
-        const res = await fetch('/api/reserve', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:bookId})});
-        if(!res.ok) throw new Error('reserve failed');
-        const updated = await res.json();
-        window.booksData = updated;
-        showBooks(updated);
-        alert('Reserved successfully');
-    }catch(err){
-        alert('Could not reserve — using fallback behavior');
-        console.warn(err);
-    }
-}
-
-function go(page){ window.location.href = page; }
-function goBack(){ window.location.href = 'dashboard.html'; }
-
-loadAndShow();
 </script>
 </body>
 </html>
