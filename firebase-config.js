@@ -1,4 +1,3 @@
-// firebase-config.js
 window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyBYZYwrbWMezswKCKrYSdF8O0pePIb-exI",
   authDomain: "libraty-preorder-system.firebaseapp.com",

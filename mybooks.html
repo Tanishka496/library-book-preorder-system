@@ -19,17 +19,19 @@
 </script>
 
 <body class="dashboard">
+
 <div class="container">
 
-  <!-- BACK BUTTON FIXED -->
-  <button class="dash-btn back" style="position:fixed;top:16px;left:16px;z-index:1000;" onclick="history.back()">⬅ Back</button>
-
-  <div class="hero card" style="margin-top:60px;">
-    <h2>My Books</h2>
+  <div class="hero card">
+    <h2>📖 My Books</h2>
     <p class="muted">Borrowed books, renewals & fines</p>
   </div>
 
   <div id="myBooksList"></div>
+
+  <div class="card center-actions">
+    <button class="dash-btn back" onclick="location.href='dashboard.html'">⬅ Back</button>
+  </div>
 
 </div>
 
@@ -41,59 +43,126 @@ auth.onAuthStateChanged(user => {
     .where("userId", "==", user.uid)
     .where("status", "==", "Active")
     .orderBy("reservedAt", "desc")
-    .onSnapshot(snapshot => {
+    .onSnapshot(async snapshot => {
+
       const el = document.getElementById("myBooksList");
       el.innerHTML = "";
 
-      if (snapshot.empty) { el.innerHTML = "<p class='muted'>No active books</p>"; return; }
+      if (snapshot.empty) {
+        el.innerHTML = "<p class='muted'>No active books</p>";
+        return;
+      }
 
       const now = new Date();
 
-      snapshot.forEach(doc => {
+      for (const doc of snapshot.docs) {
         const r = doc.data();
-        const renewCount = r.renewCount || 0;
-        const dueDate = r.dueAt?.toDate();
-        let fine = 0;
-        let statusText = "";
 
-        if (dueDate) {
-          const diffDays = Math.ceil((now - dueDate)/(1000*60*60*24));
-          if (diffDays > 0) { fine = diffDays * 5; statusText = `Overdue by ${diffDays} day(s)`; }
-          else { statusText = `${Math.abs(diffDays)} day(s) left`; }
+        const dueDate = r.dueAt.toDate();
+        const renewCount = r.renewCount || 0;
+
+        let fine = r.fineAmount || 0;
+        let finePaid = r.finePaid || false;
+        let lastCalc = r.lastFineCalculatedAt
+          ? r.lastFineCalculatedAt.toDate()
+          : dueDate;
+
+        // 💰 PERSISTENT FINE CALCULATION
+        if (now > dueDate && !finePaid) {
+          const diffDays = Math.floor(
+            (now - lastCalc) / (1000 * 60 * 60 * 24)
+          );
+
+          if (diffDays > 0) {
+            fine += diffDays * 5;
+            await db.collection("reservations").doc(doc.id).update({
+              fineAmount: fine,
+              lastFineCalculatedAt:
+                firebase.firestore.Timestamp.fromDate(now)
+            });
+          }
         }
 
         const canRenew = renewCount < 3;
+        const hasFine = fine > 0 && !finePaid;
 
         el.innerHTML += `
-          <div class="card book-card" data-id="${doc.id}">
+          <div class="card book-card">
+
             <h4>${r.bookName}</h4>
-            <p><b>Due Date:</b> ${dueDate ? dueDate.toDateString() : "Not set"}</p>
+
+            <p><b>Due Date:</b> ${dueDate.toDateString()}</p>
             <p><b>Renewals:</b> ${renewCount} / 3</p>
-            <p><b>Status:</b> ${statusText}</p>
-            ${fine>0 ? `<p style="color:#dc2626"><b>Fine:</b> ₹${fine}</p>` : ""}
+
+            ${
+              hasFine
+                ? `<p style="color:#dc2626"><b>Fine:</b> ₹${fine}</p>`
+                : `<p style="color:#16a34a"><b>No Fine</b></p>`
+            }
+
             <div class="center-actions">
-              <button class="dash-btn primary" ${canRenew ? "" : "disabled"} onclick="renewBook('${doc.id}')">🔄 Renew (10 days)</button>
-              <button class="dash-btn primary" onclick="returnBook('${doc.id}','${r.bookId}')">⏎ Return</button>
+
+              <!-- 🔄 Renew -->
+              <button class="dash-btn primary"
+                ${canRenew ? "" : "disabled"}
+                onclick="renewBook('${doc.id}')">
+                🔄 Renew (10 days)
+              </button>
+
+              <!-- 💳 Pay Fine (shown whenever fine exists) -->
+              ${
+                hasFine
+                  ? `<button class="dash-btn secondary"
+                      onclick="payFine('${doc.id}')">
+                      💳 Pay ₹${fine}
+                    </button>`
+                  : ""
+              }
+
+              <!-- ⏎ Return (ONLY if NO fine) -->
+              ${
+                !hasFine
+                  ? `<button class="dash-btn back"
+                      onclick="returnBook('${doc.id}','${r.bookId}')">
+                      ⏎ Return
+                    </button>`
+                  : `<p style="color:#dc2626;font-size:14px">
+                      Pay fine to return this book
+                    </p>`
+              }
+
             </div>
           </div>
         `;
-      });
+      }
     });
 });
 
+// 🔄 Renew (fine stays)
 async function renewBook(resId) {
   const now = new Date();
   const newDue = new Date(now);
-  newDue.setDate(now.getDate()+10);
+  newDue.setDate(now.getDate() + 10);
 
   await db.collection("reservations").doc(resId).update({
     dueAt: firebase.firestore.Timestamp.fromDate(newDue),
     renewCount: firebase.firestore.FieldValue.increment(1)
   });
 
-  alert("Book renewed for 10 more days");
+  alert("Renewed for 10 more days");
 }
 
+// 💳 Pay Fine
+async function payFine(resId) {
+  await db.collection("reservations").doc(resId).update({
+    finePaid: true,
+    fineAmount: 0
+  });
+
+  alert("Fine paid successfully");
+}
+
+// ⏎ Return Book
 async function returnBook(resId, bookId) {
   await db.collection("reservations").doc(resId).update({
     status: "Returned",
@@ -104,7 +173,7 @@ async function returnBook(resId, bookId) {
     availableCopies: firebase.firestore.FieldValue.increment(1)
   });
 
-  alert("Book returned successfully!");
+  alert("Book returned successfully");
 }
 </script>
 </body>

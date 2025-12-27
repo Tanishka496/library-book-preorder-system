@@ -21,15 +21,7 @@
 <body class="dashboard">
 <div class="container">
 
-  <!-- BACK BUTTON FIXED -->
-  <button class="dash-btn back" style="position:fixed;top:16px;left:16px;z-index:1000;" onclick="location.href='dashboard.html'">⬅ Back</button>
-
-  <!-- VIEW MY BOOKS BUTTON INSIDE FRAME -->
-  <div class="center-actions" style="margin-top:60px;">
-    <button class="dash-btn primary" onclick="location.href='mybooks.html'">📖 View My Books</button>
-  </div>
-
-  <div class="hero card" style="margin-top:16px;">
+  <div class="hero card">
     <h2>Search Books 📚</h2>
     <p class="muted">Reserve available copies</p>
   </div>
@@ -40,100 +32,191 @@
 
   <div id="bookList" class="books-grid"></div>
 
+  <div class="card center-actions">
+    <button class="dash-btn primary" onclick="location.href='mybooks.html'">
+      📖 View My Books
+    </button>
+  </div>
+
+  <div class="card" style="margin-top:12px;text-align:center;">
+    <button class="dash-btn back" onclick="location.href='dashboard.html'">
+      ⬅ Back
+    </button>
+  </div>
+
 </div>
 
 <script>
 let books = [];
 let userReservedBooks = new Set();
 
+// 🔐 AUTH + REAL-TIME RESERVATIONS
 auth.onAuthStateChanged(user => {
-  if (!user) location.href = "index.html";
+  if (!user) {
+    location.href = "index.html";
+    return;
+  }
 
+  // 👇 LIVE listener for current user's active reservations
   db.collection("reservations")
     .where("userId", "==", user.uid)
     .where("status", "==", "Active")
     .onSnapshot(snapshot => {
+
       userReservedBooks.clear();
-      snapshot.forEach(doc => userReservedBooks.add(doc.data().bookId));
+      snapshot.forEach(doc => {
+        userReservedBooks.add(doc.data().bookId);
+      });
+
       renderBooks(books);
     });
 });
 
+// 📚 REAL-TIME BOOKS
 db.collection("books").onSnapshot(snapshot => {
   books = [];
-  snapshot.forEach(doc => books.push({ id: doc.id, ...doc.data() }));
+  snapshot.forEach(doc => {
+    books.push({ id: doc.id, ...doc.data() });
+  });
   renderBooks(books);
 });
 
+// 🖼️ RENDER BOOKS
 function renderBooks(list) {
   const el = document.getElementById("bookList");
   el.innerHTML = "";
+
   list.forEach(book => {
     const alreadyReserved = userReservedBooks.has(book.id);
     const available = book.availableCopies > 0;
+
     el.innerHTML += `
       <div class="card book-card">
         <h4>${book.name}</h4>
         <p class="muted">by ${book.author}</p>
-        <p>Status: <b>${available ? `Available (${book.availableCopies})` : 'Unavailable'}</b></p>
-        ${alreadyReserved
-          ? `<button class="dash-btn secondary" disabled>Already Reserved</button>`
+        <p>
+          Status:
+          <b>
+            ${available
+              ? `Available (${book.availableCopies} left)`
+              : "Unavailable"}
+          </b>
+        </p>
+
+        ${
+          alreadyReserved
+          ? `<button class="dash-btn secondary" disabled>
+              Already Reserved
+            </button>`
           : available
-            ? `<button class="dash-btn primary" onclick="reserveBook(this,'${book.id}','${book.name}')">Reserve</button>`
-            : `<button class="dash-btn secondary" disabled>Unavailable</button>`}
+            ? `<button class="dash-btn primary"
+                 onclick="reserveBook(this,'${book.id}','${book.name}')">
+                 Reserve
+               </button>`
+            : `<button class="dash-btn secondary" disabled>
+                 Unavailable
+               </button>`
+        }
       </div>
     `;
   });
 }
 
-document.getElementById("search").addEventListener("input", e => {
+// 🔍 SEARCH
+search.addEventListener("input", e => {
   const q = e.target.value.toLowerCase();
-  renderBooks(books.filter(b => b.name.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)));
+  renderBooks(
+    books.filter(b =>
+      b.name.toLowerCase().includes(q) ||
+      b.author.toLowerCase().includes(q)
+    )
+  );
 });
 
+// 📌 RESERVE BOOK (SAFE + TRANSACTION)
 async function reserveBook(btn, bookId, bookName) {
   const user = auth.currentUser;
   btn.disabled = true;
 
   try {
+    // 1️⃣ Max 5 active books
     const activeSnap = await db.collection("reservations")
       .where("userId", "==", user.uid)
       .where("status", "==", "Active")
       .get();
 
-    if (activeSnap.size >= 5) { alert("You can reserve only 5 books"); btn.disabled = false; return; }
+    if (activeSnap.size >= 5) {
+      alert("You can reserve only 5 books");
+      btn.disabled = false;
+      return;
+    }
 
+    // 2️⃣ Same book already reserved
     const sameBook = await db.collection("reservations")
       .where("userId", "==", user.uid)
       .where("bookId", "==", bookId)
       .where("status", "==", "Active")
       .get();
 
-    if (!sameBook.empty) { alert("You already reserved this book"); btn.disabled = false; return; }
+    if (!sameBook.empty) {
+      alert("You already reserved this book");
+      btn.disabled = false;
+      return;
+    }
 
+    // 3️⃣ Get studentId
     const userDoc = await db.collection("users").doc(user.uid).get();
     const studentId = userDoc.data().studentId;
+
     const bookRef = db.collection("books").doc(bookId);
 
+    // 4️⃣ TRANSACTION (atomic)
     await db.runTransaction(async tx => {
       const snap = await tx.get(bookRef);
       if (!snap.exists) throw new Error("Book not found");
+
       const data = snap.data();
-      if (data.availableCopies <= 0) throw new Error("No copies left");
+      if (data.availableCopies <= 0)
+        throw new Error("No copies left");
 
-      tx.update(bookRef, { availableCopies: data.availableCopies - 1 });
-      const now = firebase.firestore.Timestamp.now();
-      const dueAt = firebase.firestore.Timestamp.fromDate(new Date(now.toDate().getTime() + 10*24*60*60*1000));
-
-      tx.set(db.collection("reservations").doc(), {
-        bookId, bookName, userId: user.uid, studentId,
-        status: "Active", reservedAt: now, dueAt, renewCount: 0
+      tx.update(bookRef, {
+        availableCopies: data.availableCopies - 1
       });
+
+      // 📅 calculate due date (10 days)
+const now = firebase.firestore.Timestamp.now();
+const dueAt = firebase.firestore.Timestamp.fromDate(
+  new Date(now.toDate().getTime() + 10 * 24 * 60 * 60 * 1000)
+); // +10 days
+
+tx.set(db.collection("reservations").doc(), {
+  bookId,
+  bookName,
+  userId: user.uid,
+  studentId,
+  status: "Active",
+  reservedAt: firebase.firestore.FieldValue.serverTimestamp(),
+
+  dueAt: firebase.firestore.Timestamp.fromDate(
+    new Date(Date.now() + 10 * 24 * 60 * 60 * 1000) // +10 days
+  ),
+
+  renewCount: 0,
+  fineAccrued: 0,
+  lastFineCheckedAt: firebase.firestore.FieldValue.serverTimestamp()
+});
+
+
     });
 
     alert("Book reserved successfully");
-  } catch (err) { alert(err.message); btn.disabled = false; }
+
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
 }
 </script>
+
 </body>
 </html>
