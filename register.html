@@ -5,18 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Library Preorder System | Register</title>
   <link rel="stylesheet" href="style.css" />
-</head>
-
+  
 <!-- Firebase -->
 <script src="firebase-config.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
   firebase.initializeApp(window.FIREBASE_CONFIG);
   const auth = firebase.auth();
+  const db = firebase.firestore();
 </script>
-
+</head>
 <body class="auth-page fade-page">
 
 <main class="container">
@@ -82,10 +83,26 @@ registerForm.addEventListener("submit", async e => {
   if (pwd.length < 6) return passError.textContent = "Minimum 6 characters";
   if (pwd !== cpwd) return confirmError.textContent = "Passwords do not match";
 
-  try {
-    await auth.createUserWithEmailAndPassword(sid + "@library.com", pwd);
-    window.location.href = "dashboard.html";
-  } catch (err) {
+  const email = sid+ "@library.com";
+
+  try
+  {
+    // Create Auth user
+    const cred = await auth.createUserWithEmailAndPassword(email, pwd);
+    const user = cred.user;
+
+    // Save SAME Student ID in Firestore
+    await db.collection("users").doc(user.uid).set({
+      sid: sid,                  // ✅ REAL STUDENT ID
+      email: user.email,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    alert("Registration successful");
+    window.location.href = "index.html";
+
+  } catch (err)
+  {
     registerError.textContent = err.message;
   }
 });

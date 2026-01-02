@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 
-<!-- Firebase --
+<!-- Firebase -->
 <script src="firebase-config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -15,18 +15,9 @@
 <script>
   firebase.initializeApp(window.FIREBASE_CONFIG);
   const auth = firebase.auth();
-</script>-->
-
-<body class="auth-page fade-page">
-  <script src="firebase-config.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
-<script>
-  firebase.initializeApp(window.FIREBASE_CONFIG);
-  window.auth = firebase.auth();
 </script>
 
+<body class="auth-page fade-page">
 
 <main class="container">
   <section class="card auth-card">
@@ -62,7 +53,6 @@
 </main>
 
 <script>
- const auth = window.auth;
 const loginForm = document.getElementById("loginForm");
 const studentId = document.getElementById("studentId");
 const password = document.getElementById("password");

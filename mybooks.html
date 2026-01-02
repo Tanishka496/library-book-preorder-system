@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 
+<!-- Firebase -->
 <script src="firebase-config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -19,31 +20,80 @@
 </script>
 
 <body class="dashboard">
-
 <div class="container">
 
-  <div class="hero card">
+  <!-- FIXED BACK BUTTON -->
+  <button class="dash-btn back"
+    style="position:fixed;top:16px;left:16px;z-index:1000"
+    onclick="location.href='dashboard.html'">
+    ⬅ Back
+  </button>
+
+  <div class="hero card" style="margin-top:60px;">
     <h2>📖 My Books</h2>
     <p class="muted">Borrowed books, renewals & fines</p>
   </div>
 
   <div id="myBooksList"></div>
 
-  <div class="card center-actions">
-    <button class="dash-btn back" onclick="location.href='dashboard.html'">⬅ Back</button>
-  </div>
-
 </div>
 
 <script>
-auth.onAuthStateChanged(user => {
+/* ================= FIREBASE AUTH ================= */
+auth.onAuthStateChanged(async user => {
   if (!user) return location.href = "index.html";
 
+  // 🔥 Run fine calculation ONCE
+  await calculateFinesOnce(user.uid);
+
+  // 📖 Listen ONLY for UI updates
+  listenMyBooks(user.uid);
+});
+
+/* ================= FINE CALCULATION (ONCE) ================= */
+async function calculateFinesOnce(userId) {
+  const snap = await db.collection("reservations")
+    .where("userId", "==", userId)
+    .where("status", "==", "Active")
+    .get();
+
+  const now = new Date();
+
+  for (const doc of snap.docs) {
+    const r = doc.data();
+
+    if (r.finePaid) continue;
+
+    const dueDate = r.dueAt.toDate();
+    let lastCalc = r.lastFineCalculatedAt
+      ? r.lastFineCalculatedAt.toDate()
+      : dueDate;
+
+    if (now <= lastCalc) continue;
+
+    const diffDays = Math.floor(
+      (now - lastCalc) / (1000 * 60 * 60 * 24)
+    );
+
+    if (diffDays > 0) {
+      const newFine = (r.fineAmount || 0) + diffDays * 5;
+
+      await db.collection("reservations").doc(doc.id).update({
+        fineAmount: newFine,
+        lastFineCalculatedAt:
+          firebase.firestore.Timestamp.fromDate(now)
+      });
+    }
+  }
+}
+
+/* ================= REALTIME UI LISTENER ================= */
+function listenMyBooks(userId) {
   db.collection("reservations")
-    .where("userId", "==", user.uid)
+    .where("userId", "==", userId)
     .where("status", "==", "Active")
     .orderBy("reservedAt", "desc")
-    .onSnapshot(async snapshot => {
+    .onSnapshot(snapshot => {
 
       const el = document.getElementById("myBooksList");
       el.innerHTML = "";
@@ -53,42 +103,15 @@ auth.onAuthStateChanged(user => {
         return;
       }
 
-      const now = new Date();
-
-      for (const doc of snapshot.docs) {
+      snapshot.forEach(doc => {
         const r = doc.data();
-
         const dueDate = r.dueAt.toDate();
+        const fine = r.fineAmount || 0;
         const renewCount = r.renewCount || 0;
-
-        let fine = r.fineAmount || 0;
-        let finePaid = r.finePaid || false;
-        let lastCalc = r.lastFineCalculatedAt
-          ? r.lastFineCalculatedAt.toDate()
-          : dueDate;
-
-        // 💰 PERSISTENT FINE CALCULATION
-        if (now > dueDate && !finePaid) {
-          const diffDays = Math.floor(
-            (now - lastCalc) / (1000 * 60 * 60 * 24)
-          );
-
-          if (diffDays > 0) {
-            fine += diffDays * 5;
-            await db.collection("reservations").doc(doc.id).update({
-              fineAmount: fine,
-              lastFineCalculatedAt:
-                firebase.firestore.Timestamp.fromDate(now)
-            });
-          }
-        }
-
-        const canRenew = renewCount < 3;
-        const hasFine = fine > 0 && !finePaid;
+        const hasFine = fine > 0 && !r.finePaid;
 
         el.innerHTML += `
           <div class="card book-card">
-
             <h4>${r.bookName}</h4>
 
             <p><b>Due Date:</b> ${dueDate.toDateString()}</p>
@@ -96,53 +119,53 @@ auth.onAuthStateChanged(user => {
 
             ${
               hasFine
-                ? `<p style="color:#dc2626"><b>Fine:</b> ₹${fine}</p>`
-                : `<p style="color:#16a34a"><b>No Fine</b></p>`
+              ? `<p style="color:#dc2626"><b>Fine:</b> ₹${fine}</p>`
+              : `<p style="color:#16a34a"><b>No Fine</b></p>`
             }
 
             <div class="center-actions">
 
-              <!-- 🔄 Renew -->
               <button class="dash-btn primary"
-                ${canRenew ? "" : "disabled"}
+                ${renewCount >= 3 ? "disabled" : ""}
                 onclick="renewBook('${doc.id}')">
                 🔄 Renew (10 days)
               </button>
 
-              <!-- 💳 Pay Fine (shown whenever fine exists) -->
               ${
                 hasFine
                   ? `<button class="dash-btn secondary"
-                      onclick="payFine('${doc.id}')">
-                      💳 Pay ₹${fine}
+                      onclick="payFine('${doc.id}','${r.bookId}')">
+                      💳 Pay Fine
                     </button>`
-                  : ""
-              }
-
-              <!-- ⏎ Return (ONLY if NO fine) -->
-              ${
-                !hasFine
-                  ? `<button class="dash-btn back"
+                  : `<button class="dash-btn back"
                       onclick="returnBook('${doc.id}','${r.bookId}')">
                       ⏎ Return
                     </button>`
-                  : `<p style="color:#dc2626;font-size:14px">
+              }
+
+              ${
+                hasFine
+                  ? `<p style="color:#dc2626;font-size:13px">
                       Pay fine to return this book
                     </p>`
+                  : ""
               }
 
             </div>
           </div>
         `;
-      }
+      });
     });
-});
+}
 
-// 🔄 Renew (fine stays)
+/* ================= RENEW BOOK ================= */
 async function renewBook(resId) {
+  const snap = await db.collection("reservations").doc(resId).get();
+  const r = snap.data();
+
   const now = new Date();
-  const newDue = new Date(now);
-  newDue.setDate(now.getDate() + 10);
+  const newDue = new Date(r.dueAt.toDate());
+  newDue.setDate(newDue.getDate() + 10);
 
   await db.collection("reservations").doc(resId).update({
     dueAt: firebase.firestore.Timestamp.fromDate(newDue),
@@ -152,17 +175,23 @@ async function renewBook(resId) {
   alert("Renewed for 10 more days");
 }
 
-// 💳 Pay Fine
-async function payFine(resId) {
+/* ================= PAY FINE (AUTO RETURN) ================= */
+async function payFine(resId, bookId) {
   await db.collection("reservations").doc(resId).update({
     finePaid: true,
-    fineAmount: 0
+    fineAmount: 0,
+    status: "Returned",
+    returnedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  alert("Fine paid successfully");
+  await db.collection("books").doc(bookId).update({
+    availableCopies: firebase.firestore.FieldValue.increment(1)
+  });
+
+  alert("Fine paid and book returned");
 }
 
-// ⏎ Return Book
+/* ================= MANUAL RETURN ================= */
 async function returnBook(resId, bookId) {
   await db.collection("reservations").doc(resId).update({
     status: "Returned",

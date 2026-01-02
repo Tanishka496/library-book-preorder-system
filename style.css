@@ -78,7 +78,19 @@ input:focus { border-color: var(--accent); outline: none; }
 .dash-btn.secondary { background: #e5e7eb; color: var(--text); }
 .dash-btn.secondary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
 
-.dash-btn.back { width: auto; padding: 6px 12px; font-size: 14px; }
+/* PAGE LEVEL BACK BUTTON ONLY */
+.back-btn {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+}
+
+/* CARD BUTTON (RETURN) */
+.dash-btn.back {
+    position: static;
+    width: 100%;
+}
+
 
 /* ===== HELP LINKS ===== */
 .help-links { margin-top: 18px; }
