@@ -11,7 +11,14 @@
 
 /* ===== RESET ===== */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-body { background: linear-gradient(180deg, #f7fafc 0%, var(--bg) 100%); color: var(--text); }
+body {
+    background-image: url("bg.jpg"), linear-gradient(180deg, #f7fafc 0%, var(--bg) 100%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-position: center top;
+    background-size: cover;
+    color: var(--text);
+}
 
 /* ===== CONTAINER ===== */
 .container { max-width: 400px; margin: 60px auto; padding: 16px; }
@@ -33,7 +40,27 @@ body { background: linear-gradient(180deg, #f7fafc 0%, var(--bg) 100%); color: v
 .back-btn:hover, .dash-btn.back:hover { text-decoration: underline; }
 
 /* ===== LOGO ===== */
-.logo { font-size: 48px; margin-bottom: 16px; color: var(--accent); }
+.logo {
+    position: fixed;
+    top: 14px;
+    right: 16px;
+    font-size: 28px;
+    color: var(--accent);
+    background: rgba(255,255,255,0.9);
+    padding: 8px 10px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    z-index: 1001;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+@media (max-width: 420px) {
+    .logo { font-size: 22px; top: 10px; right: 12px; padding: 6px 8px; }
+}
 
 /* ===== HEADINGS ===== */
 h1 { font-size: 22px; margin-bottom: 6px; }
